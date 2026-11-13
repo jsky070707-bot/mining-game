@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>地下採掘王</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101827;color:#fff;font-family:sans-serif;padding:14px}
+h1{text-align:center;color:#65d8ff}
+.panel{background:#1e2b40;border-radius:12px;padding:12px;margin:10px 0}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat{background:#293b55;padding:10px;border-radius:8px}
+button{background:#2386c8;color:white;border:0;border-radius:8px;padding:10px;margin:3px;font-weight:bold}
+button:disabled{opacity:.4}
+#grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.block{aspect-ratio:1;background:#52647a;border-radius:5px;color:white;font-size:18px;padding:0}
+.block.dug{background:#182334;color:#34445b}
+.block.player{outline:3px solid #fff}
+.small{font-size:12px;color:#b9c8da}
+</style>
+</head>
+<body>
+<h1>⛏️ 地下採掘王</h1>
+<div class="panel stats">
+ <div class="stat">💰 所持金<br><b id="money">5,000</b> G</div>
+ <div class="stat">🌍 階層<br><b id="layer">1</b></div>
+ <div class="stat">⛏️ ツルハシ Lv.<br><b id="tool">1</b></div>
+ <div class="stat">🎒 バッグ<br><b id="bag">0 / 23</b></div>
+ <div class="stat">🤖 ロボット Lv.<br><b id="robot">0</b></div>
+ <div class="stat">✨ 転生回数<br><b id="prestige">0</b></div>
+</div>
+<div class="panel">
+ <b>採掘エリア</b>
+ <p class="small">ブロックをタップして採掘！深い階層ほど高価な鉱石が出やすいよ。</p>
+ <div id="grid"></div>
+ <p id="message">採掘を始めよう！</p>
+</div>
+<div class="panel">
+ <b>🎒 バッグ・売却</b><br>
+ <button onclick="sellBag()">バッグを売却</button>
+ <button onclick="buyAutoSell()">自動売却購入 100,000 G</button>
+ <div class="small" id="autosell">自動売却：OFF</div>
+</div>
+<div class="panel">
+ <b>🛠️ 強化</b><br>
+ <button onclick="upgradeTool()">ツルハシ強化</button>
+ <button onclick="upgradeBag()">バッグ容量 +15</button>
+ <button onclick="buyRobot()">ロボット購入 / 強化</button>
+ <div class="small" id="prices"></div>
+</div>
+<div class="panel">
+ <b>⚙️ 自動化</b><br>
+ <button onclick="toggle('autoBag')">自動バッグ拡張</button>
+ <button onclick="toggle('autoTool')">自動ツルハシ強化</button>
+ <button onclick="toggle('autoRobot')">自動ロボット強化</button>
+ <div class="small" id="automation"></div>
+</div>
+<div class="panel">
+ <b>🏆 転生</b><br>
+ <p class="small">500階をクリアすると転生できるよ。転生すると永続ボーナスが増える！</p>
+ <button onclick="doPrestige()">転生する</button>
+</div>
+<script>
+let money=5000,layer=1,tool=1,bag=0,capacity=23,bagValue=0;
+let robot=0,prestige=0,autoSell=false;
+let autoBag=false,autoTool=false,autoRobot=false;
+let blocks=[],player=0,robotTimer=null;
+const $=id=>document.getElementById(id);
+function newLayer(){
+ blocks=Array.from({length:70},()=>({dug:false,gem:false}));
+ player=0;render();
+}
+function priceBonus(){return 1+prestige*.25}
+function gemChance(){return Math.min(.55,.035+layer*.0007)*(1+prestige*.15)}
+function mine(i){
+ if(!blocks[i]||blocks[i].dug)return;
+ blocks[i].dug=true;
+ let value=Math.floor((420+300*layer)*priceBonus());
+ let gem= Math.random()<gemChance();
+ if(gem)value+=Math.floor((500+layer*100)*priceBonus());
+ money+=value;bag++;bagValue+=value;
+ player=i;
+ if(bag>=capacity&&autoSell)sellBag();
+ if(blocks.every(b=>b.dug)){
+  layer++;
+  if(layer>500)layer=500;
+  newLayer();
+  $('message').textContent='階層クリア！ '+layer+'階へ！';
+ }
+ render();
+}
+function render(){
+ $('money').textContent=Math.floor(money).toLocaleString();
+ $('layer').textContent=layer;
+ $('tool').textContent=tool;
+ $('bag').textContent=bag+' / '+capacity;
+ $('robot').textContent=robot;
+ $('prestige').textContent=prestige;
+ $('autosell').textContent='自動売却：'+(autoSell?'ON':'OFF');
+ $('automation').textContent=
+ 'バッグ '+(autoBag?'ON':'OFF')+' / ツルハシ '+(autoTool?'ON':'OFF')+' / ロボット '+(autoRobot?'ON':'OFF');
+ $('prices').textContent='ツルハシ：'+toolPrice().toLocaleString()+' G / バッグ：'+bagPrice().toLocaleString()+' G / ロボット：'+robotPrice().toLocaleString()+' G';
+ $('grid').innerHTML='';
+ blocks.forEach((b,i)=>{
+  let btn=document.createElement('button');
+  btn.className='block'+(b.dug?' dug':'')+(i===player?' player':'');
+  btn.textContent=b.dug?'·':(i===player?'●':'■');
+  btn.onclick=()=>mine(i);
+  $('grid').appendChild(btn);
+ });
+}
+function sellBag(){
+ if(!bag)return;
+ money+=Math.floor(bagValue*.1);
+ bag=0;bagValue=0;render();
+}
+function toolPrice(){return Math.ceil(70*Math.pow(tool+1,1.22)*(1+Math.max(0,tool-1)*.018))}
+function bagPrice(){return Math.ceil((300+layer*15)*(.012+(capacity%3)*.002))}
+function robotPrice(){return robot===0?75000:Math.ceil(37500*Math.pow(1.01,robot-1))}
+function upgradeTool(){
+ let p=toolPrice();if(tool>=500||money<p)return;
+ money-=p;tool++;render();
+}
+function upgradeBag(){
+ let p=bagPrice();if(money<p)return;
+ money-=p;capacity+=15;render();
+}
+function buyRobot(){
+ let p=robotPrice();if(robot>=500||money<p)return;
+ money-=p;robot++;startRobot();render();
+}
+function buyAutoSell(){
+ if(autoSell||money<100000)return;
+ money-=100000;autoSell=true;render();
+}
+function toggle(key){
+ if(key==='autoBag')autoBag=!autoBag;
+ if(key==='autoTool')autoTool=!autoTool;
+ if(key==='autoRobot')autoRobot=!autoRobot;
+ render();
+}
+function startRobot(){
+ if(robotTimer)clearInterval(robotTimer);
+ if(robot===0)return;
+ let speed=Math.max(100,5000-Math.floor(robot/10)*100)*(1-prestige*.04);
+ robotTimer=setInterval(()=>{
+  if(robot===0)return;
+  if(robot>=500){
+   let count=blocks.filter(b=>!b.dug).length;
+   for(let i=0;i<blocks.length;i++)if(!blocks[i].dug){
+    blocks[i].dug=true;
+    money+=Math.floor((420+300*layer)*priceBonus());
+   }
+   if(count){layer=Math.min(500,layer+1);newLayer();}
+  }else{
+   let i=blocks.findIndex(b=>!b.dug);
+   if(i>=0)mine(i);
+  }
+  render();
+ },speed);
+}
+function doPrestige(){
+ if(layer<500||blocks.some(b=>!b.dug)){alert('500階をクリアしてね！');return}
+ prestige++;money=5000+prestige*10000;layer=1;tool=1;
+ bag=0;bagValue=0;capacity=23;robot=0;
+ if(robotTimer)clearInterval(robotTimer);
+ newLayer();render();
+}
+setInterval(()=>{
+ if(autoBag&&money>=bagPrice())upgradeBag();
+ if(autoTool&&money>=toolPrice())upgradeTool();
+ if(autoRobot&&robot<500&&money>=robotPrice())buyRobot();
+},1000);
+newLayer();render();
+</script>
+</body>
+</html>
